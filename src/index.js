@@ -1,84 +1,66 @@
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
 
-// Create WhatsApp client instance with session persistence
+// Initialize the client with LocalAuth
 const client = new Client({
-  authStrategy: new LocalAuth({
-    clientId: "whatsapp-otp-bot",
-    dataPath: "./.wwebjs_auth",
-  }),
-  puppeteer: {
-    executablePath:
-      "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-    headless: "new",
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-      "--window-size=1920x1080",
-      '--user-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"',
-    ],
-  },
-  authTimeoutMs: 60000,
-  qrTimeoutMs: 40000,
-  restartOnAuthFail: true,
+  authStrategy: new LocalAuth(),
 });
 
-// Handle errors
-client.on("auth_failure", (msg) => {
-  console.error("Authentication failed:", msg);
-});
-
-// Handle disconnects
-client.on("disconnected", (reason) => {
-  console.log("Client was disconnected:", reason);
-});
-
-// Generate QR Code for authentication (only needed for first time)
 client.on("qr", (qr) => {
+  // Generate and scan this code with your phone
   qrcode.generate(qr, { small: true });
-  console.log("Please scan the QR code with your WhatsApp app");
 });
 
-// When client is ready
 client.on("ready", () => {
   console.log("Client is ready!");
-  // After client is ready, you can send OTP
-  sendOTP("201208310237"); // Replace with the target phone number
+
+  // Example usage: send OTP to an Egyptian phone number
+  sendOtp("201063598516"); // Replace with the actual phone number
 });
 
-// Function to format phone number to WhatsApp ID
-function formatPhoneNumber(phoneNumber) {
-  // Remove any non-digit characters
-  const cleaned = phoneNumber.replace(/\D/g, "");
-  // Add @c.us suffix
-  return `${cleaned}@c.us`;
+// Function to send a 6-digit OTP to an Egyptian phone number
+function sendOtp(phoneNumber) {
+  const otp = Math.floor(100000 + Math.random() * 900000); // Generate a 6-digit OTP
+  const message = `Your OTP is: ${otp}`;
+
+  // Send the message
+  client
+    .sendMessage(`${phoneNumber}@c.us`, message)
+    .then((response) => {
+      if (response.id.fromMe) {
+        console.log("OTP sent successfully!");
+      }
+    })
+    .catch((err) => {
+      console.error("Failed to send OTP:", err);
+    });
 }
 
-// Function to generate and send OTP
-async function sendOTP(phoneNumber) {
-  try {
-    const otp = Math.floor(100000 + Math.random() * 900000); // Generate 6-digit OTP
-    const message = `Your OTP code is: ${otp}`;
-    const chatId = formatPhoneNumber(phoneNumber);
+client.on("message", (msg) => {
+  console.log(`Received message: ${msg.body}`); // Log the received message
 
-    console.log(`Attempting to send OTP to ${chatId}...`);
-    await client.sendMessage(chatId, message);
-    console.log(`OTP sent successfully to ${phoneNumber}: ${otp}`);
-  } catch (error) {
-    console.error("Error sending OTP:", error.message);
-    if (error.message.includes("invalid number")) {
-      console.error(
-        "Please make sure the phone number is correct and includes the country code"
-      );
-    }
+  if (msg.body.trim() === "!ping") {
+    // Use trim to remove any accidental spaces
+    msg
+      .reply("pong")
+      .then(() => {
+        console.log("Replied with pong");
+      })
+      .catch((err) => {
+        console.error("Failed to send reply:", err);
+      });
   }
-}
+});
 
-// Initialize the client
-console.log("Initializing WhatsApp client...");
-console.log(
-  "Make sure you have a stable internet connection and Chrome is installed."
-);
+// Handle session termination and other errors
+client.on("disconnected", (reason) => {
+  console.log("Client was logged out", reason);
+  // You can attempt to reinitialize the client or notify the user
+});
+
+client.on("auth_failure", (msg) => {
+  console.error("Authentication failure:", msg);
+  // Handle authentication failure, possibly by re-authenticating
+});
+
 client.initialize();
